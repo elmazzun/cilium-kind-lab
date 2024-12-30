@@ -2,6 +2,26 @@
 
 CILIUM_STABLE="v1.16.5"
 
+if ! command -v docker; then
+    echo "Please install docker."
+    exit 1
+fi
+
+if ! command -v helm; then
+    echo "Please install helm."
+    exit 1
+fi
+
+if ! command -v kind; then
+    echo "Please install kind."
+    exit 1
+fi
+
+if ! command -v kubectl; then
+    echo "Please install kubectl."
+    exit 1
+fi
+
 kind create cluster --name=cluster1 --config=cluster-1.yaml
 
 # Disable kube-proxy by removing iptables entries 
@@ -11,12 +31,9 @@ for NODE in $(kubectl get no --no-headers | awk '{print $1;}'); do
     docker exec "$NODE" sh -c "iptables-save | grep -v KUBE | iptables-restore"
 done
 
-# kind create cluster --name=cluster2 --config=cluster-2.yaml
-
 docker pull quay.io/cilium/cilium:$CILIUM_STABLE
 
 kind load docker-image quay.io/cilium/cilium:$CILIUM_STABLE --name=cluster1
-# kind load docker-image quay.io/cilium/cilium:$CILIUM_STABLE --name=cluster2
 
 helm repo add cilium https://helm.cilium.io/
 
@@ -44,8 +61,6 @@ helm install cilium cilium/cilium \
     --set hubble.relay.enabled=true \
     --set hubble.ui.enabled=true \
     --set gatewayAPI.enabled=true \
-    --set securityContext.privileged=true \
-    --set envoy.securityContext.privileged=true \
     --set prometheus.enabled=true \
     --set ingressController.enabled=true \
     --set ingressController.default=true \
