@@ -19,6 +19,20 @@ The following tools are required in order to run the init script:
 - `cilium`  (will be installed by script)
 - `hubble`  (will be installed by script)
 
+Please note that kind cluster may fail to start because of low resources limits: 
+check https://kind.sigs.k8s.io/docs/user/known-issues/#pod-errors-due-to-too-many-open-files.
+
+My current `inotify` limits:
+
+```bash
+sysctl -a
+...
+fs.inotify.max_queued_events = 16384
+fs.inotify.max_user_instances = 1280
+fs.inotify.max_user_watches = 655360
+...
+```
+
 Following my working environment where I developed this repo:
 
 ```bash

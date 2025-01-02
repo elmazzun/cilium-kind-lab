@@ -1,0 +1,69 @@
+# Useful for troubleshooting and monitoring, especially for Envoy proxy
+# debug:
+#   enabled: true
+#   verbose: flow
+# Enable Envoy proxy for advanced L7 network policies in a separated 
+# pod for easier traffic debugging
+# envoy:
+#   enabled: true
+# If you have a cloud provider or MetalLB, you don't need this
+# externalIPs:
+#   enabled: true
+# gatewayAPI:
+#   enabled: true
+
+# clustermesh:
+#   apiserver:
+#     tolerations:
+#     - key: "node.cilium.io/agent-not-ready"
+#       operator: "Exists"
+#       effect: "NoSchedule"
+hubble:
+  enabled: false
+  metrics:
+    enableOpenMetrics: true
+    enabled:
+    - dns
+    - drop
+    - tcp
+    - flow
+    - port-distribution
+    - icmp
+    - httpV2:exemplars=true;labelsContext=source_ip,source_namespace,source_workload,destination_ip,destination_namespace,destination_workload,traffic_direction
+  relay:
+    enabled: false
+    # tolerations:
+    # - key: "node.cilium.io/agent-not-ready"
+    #   operator: "Exists"
+    #   effect: "NoSchedule"
+  ui:
+    enabled: false
+    # tolerations:
+    # - key: "node.cilium.io/agent-not-ready"
+    #   operator: "Exists"
+    #   effect: "NoSchedule"
+image:
+  pullPolicy: IfNotPresent
+# ingressController:
+#   enabled: true
+#   default: true
+#   loadbalancerMode: dedicated
+ipam:
+  mode: kubernetes
+kubeProxyReplacement: true
+# If you have a cloud provider or MetalLB, you don't need this
+# l2announcements:
+#   enabled: true
+operator:
+  # tolerations:
+  #   - key: "node.cilium.io/agent-not-ready"
+  #     operator: "Exists"
+  #     effect: "NoSchedule"
+  prometheus:
+    enabled: true
+prometheus:
+  enabled: true
+# tolerations:
+#   - key: "node.cilium.io/agent-not-ready"
+#     operator: "Exists"
+#     effect: "NoSchedule"

@@ -2,7 +2,6 @@ kind: Cluster
 apiVersion: kind.x-k8s.io/v1alpha4
 nodes:
 - role: control-plane
-  # Single master node: don't elect ETCD leader
   kubeadmConfigPatches:
   - |
     kind: ClusterConfiguration
@@ -19,5 +18,7 @@ networking:
   disableDefaultCNI: true
   # Don't run kube-proxy
   kubeProxyMode: none
-  podSubnet: "10.0.0.0/16"
-  serviceSubnet: "10.1.0.0/16"
+  # 65534 pods
+  podSubnet: "10.2.0.0/16"
+  # 254 services
+  serviceSubnet: "172.20.2.0/24"

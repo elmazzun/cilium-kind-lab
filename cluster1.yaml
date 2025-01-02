@@ -1,0 +1,24 @@
+kind: Cluster
+apiVersion: kind.x-k8s.io/v1alpha4
+nodes:
+- role: control-plane
+  kubeadmConfigPatches:
+  - |
+    kind: ClusterConfiguration
+    controllerManager:
+      extraArgs:
+        leader-elect: "false"
+    scheduler:
+      extraArgs:
+        leader-elect: "false"
+- role: worker
+- role: worker
+networking:
+  # Don't install kind CNI (kindnet)
+  disableDefaultCNI: true
+  # Don't run kube-proxy
+  kubeProxyMode: none
+  # 65534 pods
+  podSubnet: "10.1.0.0/16"
+  # 254 services
+  serviceSubnet: "172.20.1.0/24"
