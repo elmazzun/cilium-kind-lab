@@ -1,12 +1,12 @@
 # cilium-kind-lab
 
-This repo creates a local [kind](https://kind.sigs.k8s.io/) cluster and uses [Cilium](https://cilium.io/) 
-as its CNI.
+This repo creates two local [kind](https://kind.sigs.k8s.io/) clusters and uses [Cilium](https://cilium.io/) 
+as their CNI.
 
 I'm trying to use Cilium as much as possible to implement Service Mesh, Cluster 
 Mesh, Gateway API, monitoring and observability
 
-For now, this cluster holds no particular application besides [bookinfo](https://istio.io/latest/docs/examples/bookinfo/).
+For now, these cluster hold no particular application.
 
 ## The environment
 
@@ -68,37 +68,21 @@ $ hubble version
 hubble v1.16.5@HEAD-6dbbd44 compiled with go1.23.4 on linux/amd64
 ```
 
-## The cluster
+## The clusters
 
-The cluster is made of 1 control-plane node and 2 worker nodes.
+Each cluster is made of 1 control-plane node and 2 worker nodes.
 
-In order to create the cluster, just run `./setup.sh`.
-
-A basic UI is provided by [k8s dashboard](https://github.com/kubernetes/dashboard): in order to access it, 
-you should `port-forward` its Kong Service and login by inserting the admin user access token, which is 
-printed on screen at the end of init script.
+In order to create the clusters, just run `./setup.sh`.
 
 ```bash
 $ ./setup.sh
-...
-Dashboard will be available at:
-  https://localhost:8443
-serviceaccount/admin-user created
-clusterrolebinding.rbac.authorization.k8s.io/admin-user created
-secret/admin-user created
-eyJhbGciOiJSUz...7_A74l_uwclHkk-HE8zQ # <--- Copy this
-
-# Port-forward and access the dashboard from https://localhost:8443/ after pasting the token above
-$ kubectl -n kubernetes-dashboard port-forward svc/kubernetes-dashboard-kong-proxy 8443:443
-Forwarding from 127.0.0.1:8443 -> 8443
-Forwarding from [::1]:8443 -> 8443
 ```
 
 ## TODO
 
-- [X] install k8s dashboard
-- [X] install Hubble 
 - [X] replace `kube-proxy` with Cilium
+- [X] create more than one `kind` cluster and make them communicate via Cilium Cluster Mesh
+- [ ] install k8s dashboard
+- [ ] install Hubble 
 - [ ] enable Cilium Service Mesh
 - [ ] expose Services by using Cilium Gateway API
-- [ ] create more than one `kind` cluster and make them communicate via Cilium Cluster Mesh

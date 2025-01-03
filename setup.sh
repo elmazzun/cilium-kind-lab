@@ -129,7 +129,7 @@ function create_cilium_cluster_mesh() {
     cilium clustermesh connect --context "$CLUSTER_1_CONTEXT" --destination-context "$CLUSTER_2_CONTEXT"
     cilium clustermesh status --context "$CLUSTER_1_CONTEXT" --wait
     cilium clustermesh status --context "$CLUSTER_2_CONTEXT" --wait
-    cilium connectivity test --context "$CLUSTER_1_CONTEXT" --multi-cluster "$CLUSTER_2_CONTEXT" -v --timeout 60s
+    # cilium connectivity test --context "$CLUSTER_1_CONTEXT" --multi-cluster "$CLUSTER_2_CONTEXT" -v --timeout 60s
 }
 
 check_required_software
@@ -155,36 +155,37 @@ install_cilium $CLUSTER_2_NAME $CLUSTER_2_CONTEXT "2"
 
 create_cilium_cluster_mesh $CLUSTER_1_CONTEXT $CLUSTER_2_CONTEXT
 
-exit 0
+# TODO:
+# - hubble
+# - k8s dashboard
+# - prometheus + grafana
 
-echo ">>> Enabling hubble..."
+# echo ">>> Enabling hubble..."
 # cilium hubble enable --context kind-cluster1
 # cilium hubble enable --ui --context kind-cluster1
 
-echo ">>> Accessing Hubble UI with:"
-echo ">>> cilium hubble ui"
-echo ">>> Accessing to Grafana with:"
-echo ">>> kubectl -n cilium-monitoring port-forward service/grafana --address 0.0.0.0 --address :: 3000:3000"
-
-exit 0
+# echo ">>> Accessing Hubble UI with:"
+# echo ">>> cilium hubble ui"
+# echo ">>> Accessing to Grafana with:"
+# echo ">>> kubectl -n cilium-monitoring port-forward service/grafana --address 0.0.0.0 --address :: 3000:3000"
 
 # Install bookinfo
 # There should be 1 container for each Pod (no sidecar container)
-kubectl -n default apply -f https://raw.githubusercontent.com/istio/istio/release-1.11/samples/bookinfo/platform/kube/bookinfo.yaml
-kubectl -n default apply -f https://raw.githubusercontent.com/cilium/cilium/v1.15/examples/kubernetes/gateway/basic-http.yaml
+# kubectl -n default apply -f https://raw.githubusercontent.com/istio/istio/release-1.11/samples/bookinfo/platform/kube/bookinfo.yaml
+# kubectl -n default apply -f https://raw.githubusercontent.com/cilium/cilium/v1.15/examples/kubernetes/gateway/basic-http.yaml
 
 # Install Dashboard
-helm repo add kubernetes-dashboard https://kubernetes.github.io/dashboard/
-helm upgrade --install \
-    kubernetes-dashboard kubernetes-dashboard/kubernetes-dashboard \
-    --create-namespace -n kubernetes-dashboard \
-    --timeout 180s \
-    --kube-context kind-cluster1
-kubectl apply -f ./dashboard-admin.yaml
+# helm repo add kubernetes-dashboard https://kubernetes.github.io/dashboard/
+# helm upgrade --install \
+#     kubernetes-dashboard kubernetes-dashboard/kubernetes-dashboard \
+#     --create-namespace -n kubernetes-dashboard \
+#     --timeout 180s \
+#     --kube-context kind-cluster1
+# kubectl apply -f ./dashboard-admin.yaml
 
-sleep 10
+# sleep 10
 
-kubectl get secret admin-user -n kubernetes-dashboard -o jsonpath="{.data.token}" | base64 -d
+# kubectl get secret admin-user -n kubernetes-dashboard -o jsonpath="{.data.token}" | base64 -d
 
 # cilium hubble enable --context kind-cluster2
 
