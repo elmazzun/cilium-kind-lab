@@ -1,12 +1,6 @@
 #!/bin/bash
 
-CILIUM_STABLE="v1.16.5"
-CILIUM_CLI="v0.16.22"
-HUBBLE="v1.16.5"
-CLUSTER_1_NAME="cluster1"
-CLUSTER_1_CONTEXT="kind-$CLUSTER_1_NAME"
-CLUSTER_2_NAME="cluster2"
-CLUSTER_2_CONTEXT="kind-$CLUSTER_2_NAME"
+set -euo pipefail
 
 function check_required_software() {
     if ! command -v docker; then
@@ -77,7 +71,12 @@ function install_cilium() {
     local -r API_SERVER_IP="$CLUSTER_NAME-control-plane"
     local -r API_SERVER_PORT="6443"
 
-    kind load docker-image quay.io/cilium/cilium:$CILIUM_STABLE --name="$CLUSTER_NAME"
+    docker pull "quay.io/cilium/cilium:v$CILIUM_STABLE"
+    helm repo add cilium https://helm.cilium.io/
+    helm repo update
+
+    kind load docker-image "quay.io/cilium/cilium:v$CILIUM_STABLE" \
+        --name="$CLUSTER_NAME"
 
     kubectl config use "$CLUSTER_CONTEXT" 
 
@@ -118,6 +117,15 @@ function install_hubble_cli() {
     fi
 }
 
+function deploy_demo_app() {
+    local -r CLUSTER_CONTEXT="$1"
+
+    kubectl config use "$CLUSTER_CONTEXT"
+    kubectl create namespace demo-app
+    kubectl config set-context --current --namespace=demo-app
+    kubectl create -f "https://raw.githubusercontent.com/cilium/cilium/$CILIUM_STABLE/examples/minikube/http-sw-app.yaml"
+}
+
 function create_cilium_cluster_mesh() {
     local -r CLUSTER_1_CONTEXT="$1"
     local -r CLUSTER_2_CONTEXT="$2"
@@ -132,28 +140,35 @@ function create_cilium_cluster_mesh() {
     # cilium connectivity test --context "$CLUSTER_1_CONTEXT" --multi-cluster "$CLUSTER_2_CONTEXT" -v --timeout 60s
 }
 
+CILIUM_STABLE="1.17.2"
+CILIUM_CLI="v0.18.2"
+HUBBLE="v1.16.5"
+CLUSTER_1_NAME="cluster1"
+CLUSTER_1_CONTEXT="kind-$CLUSTER_1_NAME"
+CLUSTER_2_NAME="cluster2"
+CLUSTER_2_CONTEXT="kind-$CLUSTER_2_NAME"
+
 check_required_software
 
-create_cluster $CLUSTER_1_NAME $CLUSTER_1_NAME.yaml
-create_cluster $CLUSTER_2_NAME $CLUSTER_2_NAME.yaml
+create_cluster "$CLUSTER_1_NAME" "$CLUSTER_1_NAME.yaml" || true
+# create_cluster $CLUSTER_2_NAME $CLUSTER_2_NAME.yaml
 
 delete_kube_proxy_from_iptables $CLUSTER_1_CONTEXT
-delete_kube_proxy_from_iptables $CLUSTER_2_CONTEXT
+# delete_kube_proxy_from_iptables $CLUSTER_2_CONTEXT
 
 # install_gateway_api $CLUSTER_1_CONTEXT
 # install_gateway_api $CLUSTER_2_CONTEXT
-
-docker pull quay.io/cilium/cilium:$CILIUM_STABLE
-helm repo add cilium https://helm.cilium.io/
 
 install_cilium_cli
 
 install_hubble_cli
 
-install_cilium $CLUSTER_1_NAME $CLUSTER_1_CONTEXT "1"
-install_cilium $CLUSTER_2_NAME $CLUSTER_2_CONTEXT "2"
+install_cilium "$CLUSTER_1_NAME" "$CLUSTER_1_CONTEXT" "1"
+# install_cilium $CLUSTER_2_NAME $CLUSTER_2_CONTEXT "2"
 
-create_cilium_cluster_mesh $CLUSTER_1_CONTEXT $CLUSTER_2_CONTEXT
+deploy_demo_app "$CLUSTER_1_CONTEXT"
+
+# create_cilium_cluster_mesh $CLUSTER_1_CONTEXT $CLUSTER_2_CONTEXT
 
 # TODO:
 # - hubble

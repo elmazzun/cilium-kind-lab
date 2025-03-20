@@ -47,16 +47,16 @@ $ uname -r
 6.8.0-40-generic
 
 $ docker version -f json | jq '.Client.Version'
-"27.4.1"
+"28.0.1"
 
 $ helm version --short
-v3.12.0+gc9f554d
+v3.17.1+g980d8ac
 
 $ kind version
 kind v0.26.0 go1.23.4 linux/amd64
 
 $ kubectl version --client -o json | jq '.clientVersion.gitVersion'
-"v1.29.0"
+"v1.29.7"
 
 $ cilium version
 cilium-cli: v0.16.22 compiled with go1.23.4 on linux/amd64
