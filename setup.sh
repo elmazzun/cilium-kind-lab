@@ -22,6 +22,11 @@ function check_required_software() {
         echo "Please install kubectl."
         exit 1
     fi
+
+    if ! command -v cloud-provider-kind; then
+        echo "Please install cloud-provider-kind."
+        exit 1
+    fi
 }
 
 function create_cluster() {
@@ -73,13 +78,19 @@ function install_cilium() {
 
     docker pull "quay.io/cilium/cilium:v$CILIUM_STABLE"
     helm repo add cilium https://helm.cilium.io/
-    helm repo update
+    helm repo update cilium
 
     kind load docker-image "quay.io/cilium/cilium:v$CILIUM_STABLE" \
         --name="$CLUSTER_NAME"
 
-    kubectl config use "$CLUSTER_CONTEXT" 
+    # kubectl config use "$CLUSTER_CONTEXT" 
 
+    # https://docs.cilium.io/en/stable/network/kubernetes/kubeproxy-free/#kubeproxy-free
+    # Although "kubeadm init" (used by KinD) exports KUBERNETES_SERVICE_HOST 
+    # and KUBERNETES_SERVICE_PORT as ClusterIP Service, there is not kube-proxy 
+    # in my setup provisioning such service: therefore, Cilium agent needs to 
+    # be made aware of this information by setting k8sServiceHost and 
+    # k8sServicePort in the Helm chart.
     helm install cilium cilium/cilium \
         -n kube-system \
         --set k8sServiceHost="${API_SERVER_IP}" \
@@ -88,9 +99,13 @@ function install_cilium() {
         --set cluster.id="$CLUSTER_ID" \
         --version "$CILIUM_STABLE" \
         -f cilium-values.yaml \
+        --kube-context "$CLUSTER_CONTEXT" \
         --timeout 240s
 
     cilium status "$CLUSTER_NAME" --wait 240s
+
+    echo "Checking if Cilium agent is actually replacing kube-proxy"
+    kubectl -n kube-system -c cilium-agent exec ds/cilium -- cilium-dbg status | grep KubeProxyReplacement
 }
 
 function install_cilium_cli() {
@@ -106,6 +121,7 @@ function install_cilium_cli() {
     fi
 }
 
+# https://docs.cilium.io/en/stable/observability/hubble/setup/#hubble-setup
 function install_hubble_cli() {
     if ! command -v hubble; then
         curl -L \
@@ -117,13 +133,102 @@ function install_hubble_cli() {
     fi
 }
 
+# https://docs.cilium.io/en/latest/observability/metrics/
+function install_cilium_monitoring() {
+    kubectl apply \
+        -f https://raw.githubusercontent.com/cilium/cilium/HEAD/examples/kubernetes/addons/prometheus/monitoring-example.yaml
+    kubectl wait \
+        --for=condition=Ready pod -l app=prometheus -n cilium-monitoring \
+        --timeout=180s
+    kubectl wait \
+        --for=condition=Ready pod -l app=grafana -n cilium-monitoring \
+        --timeout=180s
+    # kubectl -n cilium-monitoring port-forward service/grafana --address 0.0.0.0 --address :: 3000:3000
+}
+
+# https://docs.cilium.io/en/latest/network/servicemesh/istio/
+function install_istio() {
+    helm repo add istio https://istio-release.storage.googleapis.com/charts
+    helm repo update istio
+
+    # Install basic CRDs and cluster roles required to set up Istio
+    helm install istio-base istio/base \
+        -n istio-system \
+        --create-namespace \
+        --wait
+
+    # Install control plane component that manages and configures the 
+    # proxies to route traffic within the mesh
+    helm install istiod istio/istiod \
+        -n istio-system \
+        --set profile=ambient \
+        --wait
+
+    # Install Istio CNI node agent: it is responsible for detecting the pods 
+    # that belong to the ambient mesh, and configuring the traffic redirection 
+    # between pods and the ztunnel node proxy (which will be installed later)
+    helm install istio-cni istio/cni \
+        -n istio-system \
+        --set profile=ambient \
+        --wait
+
+    # Install the node proxy component of Istio's ambient mode
+    helm install ztunnel istio/ztunnel \
+        -n istio-system \
+        --wait
+
+    # Kiali, Prometheus and Grafana
+    kubectl apply \
+        -n istio-system \
+        -f https://raw.githubusercontent.com/istio/istio/release-1.25/samples/addons/kiali.yaml
+
+    kubectl apply \
+        -n istio-system \
+        -f https://raw.githubusercontent.com/istio/istio/release-1.25/samples/addons/grafana.yaml
+
+    kubectl apply \
+        -n istio-system \
+        -f https://raw.githubusercontent.com/istio/istio/release-1.25/samples/addons/prometheus.yaml
+}
+
+function install_dashboard() {
+    local -r CLUSTER_CONTEXT="$1"
+
+    helm repo add kubernetes-dashboard \
+        https://kubernetes.github.io/dashboard/ || true
+    helm upgrade \
+        --install kubernetes-dashboard kubernetes-dashboard/kubernetes-dashboard \
+        --kube-context "$CLUSTER_CONTEXT" \
+        --create-namespace -n kubernetes-dashboard \
+        --timeout 240s
+
+    kubectl -n kubernetes-dashboard apply -f dashboard-admin.yaml
+    sleep 3
+    kubectl get secret admin-user -n kubernetes-dashboard \
+        -o jsonpath="{.data.token}" | base64 -d
+}
+
 function deploy_demo_app() {
     local -r CLUSTER_CONTEXT="$1"
 
     kubectl config use "$CLUSTER_CONTEXT"
-    kubectl create namespace demo-app
-    kubectl config set-context --current --namespace=demo-app
-    kubectl create -f "https://raw.githubusercontent.com/cilium/cilium/$CILIUM_STABLE/examples/minikube/http-sw-app.yaml"
+    kubectl create namespace bookinfo
+    # kubectl label namespace bookinfo istio-injection=enabled
+    kubectl label namespace bookinfo istio.io/dataplane-mode=ambient
+
+    # demo app
+    kubectl apply \
+        -n bookinfo \
+        -f https://raw.githubusercontent.com/istio/istio/release-1.11/samples/bookinfo/platform/kube/bookinfo.yaml
+    # curl clients
+    kubectl apply \
+        -n bookinfo \
+        -f https://raw.githubusercontent.com/linsun/sample-apps/main/sleep/sleep.yaml
+    kubectl apply \
+        -n bookinfo \
+        -f https://raw.githubusercontent.com/linsun/sample-apps/main/sleep/notsleep.yaml
+    # while true; do kubectl exec deploy/notsleep -- curl -s http://productpage:9080/ | head -n1; sleep 0.3; done
+    # while true; do kubectl exec deploy/sleep -- curl -s http://productpage:9080/ | head -n1; sleep 0.3; done
 }
 
 function create_cilium_cluster_mesh() {
@@ -166,41 +271,15 @@ install_hubble_cli
 install_cilium "$CLUSTER_1_NAME" "$CLUSTER_1_CONTEXT" "1"
 # install_cilium $CLUSTER_2_NAME $CLUSTER_2_CONTEXT "2"
 
+install_cilium_monitoring # TODO: add context
+
+install_istio # TODO: add context
+
+install_dashboard "$CLUSTER_1_CONTEXT"
+
 deploy_demo_app "$CLUSTER_1_CONTEXT"
 
 # create_cilium_cluster_mesh $CLUSTER_1_CONTEXT $CLUSTER_2_CONTEXT
-
-# TODO:
-# - hubble
-# - k8s dashboard
-# - prometheus + grafana
-
-# echo ">>> Enabling hubble..."
-# cilium hubble enable --context kind-cluster1
-# cilium hubble enable --ui --context kind-cluster1
-
-# echo ">>> Accessing Hubble UI with:"
-# echo ">>> cilium hubble ui"
-# echo ">>> Accessing to Grafana with:"
-# echo ">>> kubectl -n cilium-monitoring port-forward service/grafana --address 0.0.0.0 --address :: 3000:3000"
-
-# Install bookinfo
-# There should be 1 container for each Pod (no sidecar container)
-# kubectl -n default apply -f https://raw.githubusercontent.com/istio/istio/release-1.11/samples/bookinfo/platform/kube/bookinfo.yaml
-# kubectl -n default apply -f https://raw.githubusercontent.com/cilium/cilium/v1.15/examples/kubernetes/gateway/basic-http.yaml
-
-# Install Dashboard
-# helm repo add kubernetes-dashboard https://kubernetes.github.io/dashboard/
-# helm upgrade --install \
-#     kubernetes-dashboard kubernetes-dashboard/kubernetes-dashboard \
-#     --create-namespace -n kubernetes-dashboard \
-#     --timeout 180s \
-#     --kube-context kind-cluster1
-# kubectl apply -f ./dashboard-admin.yaml
-
-# sleep 10
-
-# kubectl get secret admin-user -n kubernetes-dashboard -o jsonpath="{.data.token}" | base64 -d
 
 # cilium hubble enable --context kind-cluster2
 

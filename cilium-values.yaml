@@ -1,69 +1,52 @@
-# Useful for troubleshooting and monitoring, especially for Envoy proxy
-# debug:
-#   enabled: true
-#   verbose: flow
-# Enable Envoy proxy for advanced L7 network policies in a separated 
-# pod for easier traffic debugging
-# envoy:
-#   enabled: true
-# If you have a cloud provider or MetalLB, you don't need this
-# externalIPs:
-#   enabled: true
-# gatewayAPI:
-#   enabled: true
+# https://docs.cilium.io/en/stable/helm-reference/
 
-# clustermesh:
-#   apiserver:
-#     tolerations:
-#     - key: "node.cilium.io/agent-not-ready"
-#       operator: "Exists"
-#       effect: "NoSchedule"
 hubble:
-  enabled: false
+  enabled: true
+  dashboards:
+    enabled: true
+    namespace: cilium-monitoring
+    annotations:
+      grafana_folder: "Hubble"
+  prometheus:
+    enabled: true
   metrics:
     enableOpenMetrics: true
     enabled:
+    # - dns:query;ignoreAAAA
     - dns
-    - drop
+    - drop #:sourceContext=identity;destinationContext=identity
     - tcp
     - flow
-    - port-distribution
     - icmp
-    - httpV2:exemplars=true;labelsContext=source_ip,source_namespace,source_workload,destination_ip,destination_namespace,destination_workload,traffic_direction
+    - port-distribution
+    - 'httpV2:exemplars=true;labelsContext=source_ip,source_namespace,source_workload,destination_ip,destination_namespace,destination_workload,traffic_direction;sourceContext=workload-name|reserved-identity;destinationContext=workload-name|reserved-identity'
   relay:
-    enabled: false
-    # tolerations:
-    # - key: "node.cilium.io/agent-not-ready"
-    #   operator: "Exists"
-    #   effect: "NoSchedule"
+    enabled: true
   ui:
-    enabled: false
-    # tolerations:
-    # - key: "node.cilium.io/agent-not-ready"
-    #   operator: "Exists"
-    #   effect: "NoSchedule"
+    enabled: true
+
 image:
   pullPolicy: IfNotPresent
-# ingressController:
-#   enabled: true
-#   default: true
-#   loadbalancerMode: dedicated
+
 ipam:
   mode: kubernetes
+
 kubeProxyReplacement: true
-# If you have a cloud provider or MetalLB, you don't need this
-# l2announcements:
-#   enabled: true
+
 operator:
-  # tolerations:
-  #   - key: "node.cilium.io/agent-not-ready"
-  #     operator: "Exists"
-  #     effect: "NoSchedule"
   prometheus:
     enabled: true
+
 prometheus:
   enabled: true
-# tolerations:
-#   - key: "node.cilium.io/agent-not-ready"
-#     operator: "Exists"
-#     effect: "NoSchedule"
+
+############################## Cilium with Istio ##############################
+# Cilium must ensure traffic redirected to Istio is not disrupted
+socketLB:
+  hostNamespaceOnly: true
+# Cilium CNI must not interfere with Istio CNI plugin (which implements both 
+# sidecar and ambient modes)
+cni:
+  exclusive: false
+# hostServices:
+#   hostNamespaceOnly: true
